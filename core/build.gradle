@@ -6,6 +6,8 @@ sourceSets {
     jarFileTest
 }
 
+test.maxParallelForks = 4
+
 idea.module.testSourceDirs += sourceSets.jarFileTest.allSource.srcDirs
 
 shadowJar {
@@ -38,15 +40,13 @@ tasks.japicmp {
         "org.testcontainers.shaded.*",
     ]
 
-    classExcludes = []
+    classExcludes = [
+        "org.testcontainers.utility.RyukResourceReaper",
+    ]
 
     methodExcludes = [
-        "org.testcontainers.utility.ResourceReaper#start(java.lang.String,com.github.dockerjava.api.DockerClient)",
-        "org.testcontainers.utility.ResourceReaper#start(com.github.dockerjava.api.DockerClient)",
-        "org.testcontainers.utility.ResourceReaper#registerNetworkForCleanup(java.lang.String)",
-        "org.testcontainers.utility.ResourceReaper#removeNetworks(java.lang.String)",
-        "org.testcontainers.images.builder.Transferable#of(java.lang.String)",
-        "org.testcontainers.images.builder.Transferable#updateChecksum(java.util.zip.Checksum)"
+        "org.testcontainers.containers.Container#getDockerClient()",
+        "org.testcontainers.containers.ContainerState#getDockerClient()",
     ]
 
     fieldExcludes = []
@@ -60,7 +60,7 @@ configurations.all {
 }
 
 dependencies {
-    baseline 'org.testcontainers:testcontainers:1.16.3', {
+    baseline 'org.testcontainers:testcontainers:1.17.1', {
         exclude group: "*", module: "*"
     }
 
@@ -91,7 +91,7 @@ dependencies {
     shaded 'org.zeroturnaround:zt-exec:1.12'
 
     testImplementation 'org.apache.httpcomponents:httpclient:4.5.9'
-    testImplementation 'redis.clients:jedis:4.0.1'
+    testImplementation 'redis.clients:jedis:4.2.2'
     testImplementation 'com.rabbitmq:amqp-client:5.14.2'
     testImplementation 'org.mongodb:mongo-java-driver:3.12.10'
 
