@@ -7,13 +7,13 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.testcontainers.TestImages;
 import org.testcontainers.Testcontainers;
 
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 
-import static org.rnorth.visibleassertions.VisibleAssertions.assertEquals;
-import static org.testcontainers.TestImages.TINY_IMAGE;
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class ExposedHostTest {
 
@@ -22,14 +22,17 @@ public class ExposedHostTest {
     @BeforeClass
     public static void setUpClass() throws Exception {
         server = HttpServer.create(new InetSocketAddress(0), 0);
-        server.createContext("/", exchange -> {
-            byte[] content = "Hello World!".getBytes();
-            exchange.sendResponseHeaders(200, content.length);
-            try (OutputStream responseBody = exchange.getResponseBody()) {
-                responseBody.write(content);
-                responseBody.flush();
+        server.createContext(
+            "/",
+            exchange -> {
+                byte[] content = "Hello World!".getBytes();
+                exchange.sendResponseHeaders(200, content.length);
+                try (OutputStream responseBody = exchange.getResponseBody()) {
+                    responseBody.write(content);
+                    responseBody.flush();
+                }
             }
-        });
+        );
 
         server.start();
     }
@@ -46,11 +49,7 @@ public class ExposedHostTest {
 
     @Test
     public void testExposedHostAfterContainerIsStarted() {
-        try (
-            GenericContainer<?> container = new GenericContainer<>(TINY_IMAGE)
-                .withCommand("top")
-                .withAccessToHost(true)
-        ) {
+        try (GenericContainer<?> container = new GenericContainer<>(tinyContainerDef()).withAccessToHost(true)) {
             container.start();
             Testcontainers.exposeHostPorts(server.getAddress().getPort());
             assertResponse(container, server.getAddress().getPort());
@@ -58,26 +57,29 @@ public class ExposedHostTest {
     }
 
     @Test
-    public void testExposedHost() throws Exception {
+    public void testExposedHost() {
         Testcontainers.exposeHostPorts(server.getAddress().getPort());
-        assertResponse(new GenericContainer<>(TINY_IMAGE).withCommand("top"), server.getAddress().getPort());
+        assertResponse(new GenericContainer<>(tinyContainerDef()), server.getAddress().getPort());
     }
 
     @Test
-    public void testExposedHostWithNetwork() throws Exception {
+    public void testExposedHostWithNetwork() {
         Testcontainers.exposeHostPorts(server.getAddress().getPort());
         try (Network network = Network.newNetwork()) {
-            assertResponse(new GenericContainer<>(TINY_IMAGE).withNetwork(network).withCommand("top"), server.getAddress().getPort());
+            assertResponse(
+                new GenericContainer<>(tinyContainerDef()).withNetwork(network),
+                server.getAddress().getPort()
+            );
         }
     }
 
     @Test
-    public void testExposedHostPortOnFixedInternalPorts() throws Exception {
+    public void testExposedHostPortOnFixedInternalPorts() {
         Testcontainers.exposeHostPorts(ImmutableMap.of(server.getAddress().getPort(), 80));
         Testcontainers.exposeHostPorts(ImmutableMap.of(server.getAddress().getPort(), 81));
 
-        assertResponse(new GenericContainer<>(TINY_IMAGE).withCommand("top"), 80);
-        assertResponse(new GenericContainer<>(TINY_IMAGE).withCommand("top"), 81);
+        assertResponse(new GenericContainer<>(tinyContainerDef()), 80);
+        assertResponse(new GenericContainer<>(tinyContainerDef()), 81);
     }
 
     @SneakyThrows
@@ -85,11 +87,25 @@ public class ExposedHostTest {
         try {
             container.start();
 
-            String response = container.execInContainer("wget", "-O", "-", "http://host.testcontainers.internal:" + port).getStdout();
+            String response = container
+                .execInContainer("wget", "-O", "-", "http://host.testcontainers.internal:" + port)
+                .getStdout();
 
-            assertEquals("received response", "Hello World!", response);
+            assertThat(response).as("received response").isEqualTo("Hello World!");
         } finally {
             container.stop();
+        }
+    }
+
+    private ContainerDef tinyContainerDef() {
+        return new TinyContainerDef();
+    }
+
+    private static class TinyContainerDef extends ContainerDef {
+
+        TinyContainerDef() {
+            setImage(TestImages.TINY_IMAGE);
+            setCommand("top");
         }
     }
 }
